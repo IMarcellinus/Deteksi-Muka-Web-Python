@@ -38,25 +38,95 @@
 #myTable tr.header, #myTable tr:hover {
   background-color: #f1f1f1;
 }
+
+#detectionPopup {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  min-width: 260px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: #198754;
+  color: #fff;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  display: none;
+}
+
+#detectionPopup.popup-unknown {
+  background: #dc3545;
+}
+
+#detectionPopup strong {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+#popupCategory,
+#popupCount {
+  display: block;
+  margin-top: 4px;
+}
+
+#popupBallots {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+#popupBallots li {
+  margin-bottom: 4px;
+}
+
+.page-content {
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+}
+
+.scan-panel {
+  height: 500px;
+  overflow-y: auto;
+}
+
+@media (max-width: 991.98px) {
+  .page-content {
+    margin-top: 2rem;
+  }
+
+  .scan-panel {
+    height: auto;
+    margin-top: 1.5rem;
+  }
+}
 </style>
 <body >
 
 {% include "navbar.html" %}
 
+<div id="detectionPopup">
+    <strong id="popupName">Wajah terdeteksi</strong>
+    <span id="popupMessage">Nama berhasil dikenali.</span>
+    <span id="popupCategory"></span>
+    <span id="popupCount"></span>
+    <ul id="popupBallots"></ul>
+</div>
+
 <div class="container-fluid">
-    <div class="row mt-5 mb-5">
-        <div class="col-md-8">
+    <div class="row page-content">
+        <div class="col-12 col-lg-8 offset-lg-2">
+            <div class="row">
+        <div class="col-12 col-md-8">
             <img src="{{ url_for('video_feed') }}" width="100%" class="img-thumbnail">
         </div>
-        <div class="col-md-4" style="height:500px; overflow-y:auto;">
-            <h3>Today Scan</h3>
+        <div class="col-12 col-md-4 scan-panel">
+            <h3>Daftar Pemilih</h3>
            <input type="text" id="myInput" onkeyup="myFunction()" placeholder="Search for names.." title="Type in a name">
 
 <table id="myTable">
                 <thead>
                     <tr>
-                        <th>Person #</th>
-                        <th>Name</th>
+                        <th>No</th>
+                        <th>NIK</th>
                         <th>Status</th>
                         <th>Added</th>
                     </tr>
@@ -66,18 +136,74 @@
                 </tbody>
             </table>
         </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <script type="text/javascript">
     $(document).ready(function() {
         let lastcnt = 0;
-        let cnt;
+        let lastPopupTimestamp = 0;
+        let popupTimeout = null;
         chkNewScan();
+        chkLastDetected();
 
         function chkNewScan() {
             countTodayScan();
             setTimeout(chkNewScan, 1000);
+        }
+
+        function chkLastDetected() {
+            $.ajax({
+                url: '/last_detected',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    if (data.name && data.timestamp && data.timestamp > lastPopupTimestamp) {
+                        lastPopupTimestamp = data.timestamp;
+                        showDetectionPopup(data);
+                    }
+                },
+                error: function(result){
+                    console.log('popup not available')
+                }
+            });
+
+            setTimeout(chkLastDetected, 1000);
+        }
+
+        function showDetectionPopup(data) {
+            const ballotList = $("#popupBallots");
+            const popup = $("#detectionPopup");
+
+            $("#popupName").text(data.name);
+            $("#popupMessage").text(data.message || "");
+
+            ballotList.empty();
+            if (data.status === "unknown") {
+                popup.addClass("popup-unknown");
+                $("#popupCategory").text("");
+                $("#popupCount").text("");
+            } else {
+                popup.removeClass("popup-unknown");
+                $("#popupCategory").text(data.category || "");
+                $("#popupCount").text("Jumlah surat suara: " + (data.ballot_count || 0));
+
+                $.each(data.ballot_labels || [], function(index, label) {
+                    ballotList.append("<li>" + label + "</li>");
+                });
+            }
+
+            popup.stop(true, true).fadeIn(200);
+
+            if (popupTimeout) {
+                clearTimeout(popupTimeout);
+            }
+
+            popupTimeout = setTimeout(function() {
+                popup.fadeOut(300);
+            }, 3000);
         }
 
         function countTodayScan() {
@@ -86,12 +212,10 @@
                 type: 'GET',
                 dataType: 'json',
                 success: function(data) {
-                    cnt = data.rowcount;
-                    if (cnt > lastcnt) {
+                    if (data.rowcount !== lastcnt) {
+                        lastcnt = data.rowcount;
                         reloadTable();
                     }
-
-                    lastcnt = cnt;
                 },
                 error: function(result){
                     console.log('no result!')
@@ -107,18 +231,20 @@
                 success: function(response){
                     var tr = $("#scandata");
                     tr.empty();
+                    lastcnt = response.rowcount || 0;
 
-                    $.each(response, function(index, item) {
-                        if (item.length > 0) {
-                            for (let i = 0; i < item.length; i++) {
-                                tr.append('<tr>'+
-                                                '<td>'+item[i][1]+'</td>'+
-                                                '<td>'+item[i][2]+'</td>'+
-                                                '<td>'+item[i][3]+'</td>'+
-                                                '<td>'+item[i][4]+'</td>'+
-                                           '</tr>');
-                            }
-                        }
+                    if (!response.data || response.data.length === 0) {
+                        tr.append('<tr><td colspan="4" class="text-center">Belum ada data scan.</td></tr>');
+                        return;
+                    }
+
+                    $.each(response.data, function(index, item) {
+                        tr.append('<tr>'+
+                                    '<td>'+item[0]+'</td>'+
+                                    '<td>'+item[2]+'</td>'+
+                                    '<td>'+item[3]+'</td>'+
+                                    '<td>'+item[4]+'</td>'+
+                                  '</tr>');
                     });
                 },
                 error: function(result){

@@ -39,6 +39,28 @@
 #myTable tr.header, #myTable tr:hover {
   background-color: #f1f1f1;
 }
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+
+.action-buttons .btn {
+  width: 100%;
+  white-space: normal;
+}
+
+@media (min-width: 576px) {
+  .action-buttons {
+    justify-content: space-between;
+  }
+
+  .action-buttons .btn {
+    width: auto;
+  }
+}
 </style>
 <body>
 
@@ -49,15 +71,9 @@
         <div class="col-lg-8 offset-lg-2">
             <h3>Data Pemilih</h3>
             <hr>
-            <div class="row">
-                <div class="col-lg-4">
-                    <a href="/addprsn" type="button" class="btn btn-success btn-lg"><b>Tambah Pemilih</b></a>
-                </div>
-                <div class="col-lg-4">
-                </div>
-                <div class="col-lg-4">
-                    <a href="/video_feed" type="button"  class="btn btn-info btn-lg pull-right"><b> Test Face Recognition</b></a>
-                </div>
+            <div class="action-buttons">
+                <a href="/addprsn" type="button" class="btn btn-success btn-lg"><b>Tambah Pemilih</b></a>
+                <a href="/fr_page" type="button" class="btn btn-info btn-lg"><b>Test Face Recognition</b></a>
             </div>
 
             <br>

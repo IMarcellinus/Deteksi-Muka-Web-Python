@@ -1,5 +1,47 @@
+<style>
+.navbar-content {
+    width: 100%;
+}
+
+.navbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 12px;
+}
+
+.navbar-brand {
+    margin-right: 0;
+}
+
+.navbar-menu {
+    margin-left: auto;
+}
+
+@media (max-width: 575.98px) {
+    .navbar-inner {
+        align-items: flex-start;
+    }
+
+    .navbar-brand {
+        width: 100%;
+        white-space: normal;
+    }
+
+    .navbar-menu {
+        width: 100%;
+        margin-left: 0;
+    }
+}
+</style>
+
 <nav class="navbar navbar-fixed-top navbar-expand-lg navbar-dark bg-dark shadow-sm">
-    <div class="container">
+    <div class="container-fluid">
+        <div class="row w-100">
+            <div class="col-12 col-lg-8 offset-lg-2 navbar-content">
+                <div class="navbar-inner">
         <a href="#" class="navbar-brand">
           <!-- Logo Image -->
           <img src="{{ url_for('static', filename='img/logo.png') }}" width="45" alt="" class="d-inline-block align-middle mr-2">
@@ -7,7 +49,7 @@
           <span class="font-weight-bold">Aplikasi Daftar Pemilih</span>
         </a>
 
-         <ul class="nav nav-pills"  >
+         <ul class="nav nav-pills navbar-menu"  >
 
        <!-- START MENU UNTUK LEVEL ADMIN -->
         {% if session['level'] == 'Admin' : %}
@@ -88,5 +130,8 @@
 
 
         </ul>
+                </div>
+            </div>
+        </div>
     </div>
 </nav>
