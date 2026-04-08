@@ -26,6 +26,11 @@ last_detected_time = 0
 today_scans = []
 
 
+def preprocess_face(face_img):
+    resized_face = cv2.resize(face_img, (200, 200))
+    return cv2.equalizeHist(resized_face)
+
+
 def get_ballot_details(voter_category):
     ballot_map = {
         "tetap": {
@@ -67,6 +72,10 @@ def get_voter_category_label(voter_category):
 
     return category_labels.get(voter_category, voter_category)
 
+
+def is_already_scanned(person_id):
+    return any(scan[1] == person_id for scan in today_scans)
+
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Generate dataset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 def generate_dataset(nbr):
     face_classifier = cv2.CascadeClassifier(
@@ -76,7 +85,7 @@ def generate_dataset(nbr):
 
     def face_cropped(img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = face_classifier.detectMultiScale(gray, 1.3, 5)
+        faces = face_classifier.detectMultiScale(gray, 1.2, 5)
         # scaling factor=1.3
         # Minimum neighbor = 5
 
@@ -101,8 +110,8 @@ def generate_dataset(nbr):
         if face_cropped(img) is not None:
             count_img += 1
             img_id += 1
-            face = cv2.resize(face_cropped(img), (200, 200))
-            face = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+            face = cv2.cvtColor(face_cropped(img), cv2.COLOR_BGR2GRAY)
+            face = preprocess_face(face)
 
             file_name = nbr + "." + str(img_id) + ".jpg"
             file_name_path = os.path.join(dataset_dir, file_name)
@@ -137,7 +146,8 @@ def train_classifier(nbr):
     for image in path:
         img = Image.open(image).convert('L');
         imageNp = np.array(img, 'uint8')
-        id = int(os.path.split(image)[1].split(".")[1])
+        imageNp = preprocess_face(imageNp)
+        id = int(os.path.split(image)[1].split(".")[0])
 
         faces.append(imageNp)
         ids.append(id)
@@ -164,13 +174,16 @@ def face_recognition():  # generate frame by frame from camera
 
         for (x, y, w, h) in features:
             cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
-            id, pred = clf.predict(gray_image[y:y + h, x:x + w])
+            face_region = gray_image[y:y + h, x:x + w]
+            face_region = preprocess_face(face_region)
+            id, pred = clf.predict(face_region)
             confidence = int(100 * (1 - pred / 300))
 
             mycursor.execute("select b.prs_name, b.prs_skill "
                              "  from img_dataset a "
-                             "  left join prs_mstr b on a.img_person = b.prs_nbr "
-                             " where img_id = " + str(id))
+                              "  left join prs_mstr b on a.img_person = b.prs_nbr "
+                             " where a.img_person = " + str(id) +
+                             " limit 1")
             voter_data = mycursor.fetchone()
 
             if not voter_data:
@@ -192,14 +205,15 @@ def face_recognition():  # generate frame by frame from camera
                     last_detected_ballot_count = ballot_details["count"]
                     last_detected_ballot_labels = ballot_details["labels"]
                     last_detected_time = current_time
-                    today_scans.insert(0, [
-                        len(today_scans) + 1,
-                        id,
-                        s,
-                        "Terverifikasi",
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    ])
-                    today_scans = today_scans[:50]
+                    if not is_already_scanned(id):
+                        today_scans.insert(0, [
+                            len(today_scans) + 1,
+                            id,
+                            s,
+                            "Terverifikasi",
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        ])
+                        today_scans = today_scans[:50]
             else:
                 cv2.putText(img, "Tidak Terdaftar", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
                 current_time = time.time()
@@ -216,7 +230,7 @@ def face_recognition():  # generate frame by frame from camera
         return coords
 
     def recognize(img, clf, faceCascade):
-        coords = draw_boundary(img, faceCascade, 1.1, 10, (255, 255, 0), "Face", clf)
+        coords = draw_boundary(img, faceCascade, 1.2, 8, (255, 255, 0), "Face", clf)
         return img
 
     faceCascade = cv2.CascadeClassifier(
